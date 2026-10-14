@@ -6,23 +6,26 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(nav_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/AutoModeStatus.msg" "msg/SafetyState.msg"
-  DEPENDENCIES builtin_interfaces)
+  "msg/ExecutionPath.msg" "msg/SimulationState.msg"
+  DEPENDENCIES builtin_interfaces nav_msgs)
 rosidl_get_typesupport_target(cpp_typesupport ${PROJECT_NAME} "rosidl_typesupport_cpp")
 option(BUILD_RUNTIME_NODES "Build manager runtime nodes" ON)
 if(BUILD_RUNTIME_NODES)
-  add_executable(auto_mode_manager_node src/auto_mode_manager_node.cpp)
-  ament_target_dependencies(auto_mode_manager_node rclcpp)
-  target_link_libraries(auto_mode_manager_node "${cpp_typesupport}")
-  install(TARGETS auto_mode_manager_node DESTINATION lib/${PROJECT_NAME})
+  install(PROGRAMS scripts/auto_mode_manager_runtime.py scripts/navigation_safety_monitor.py
+    DESTINATION lib/${PROJECT_NAME})
+  install(FILES scripts/contract_core.py scripts/runtime_common.py DESTINATION lib/${PROJECT_NAME})
+  install(PROGRAMS scripts/auto_mode_manager_runtime.py DESTINATION lib/${PROJECT_NAME}
+    RENAME auto_mode_manager_node)
 endif()
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
   find_package(ament_cmake_pytest REQUIRED)
-  install(PROGRAMS test/mock_mainboard_fixture.py DESTINATION lib/${PROJECT_NAME})
+  install(PROGRAMS test/mock_mainboard_fixture.py test/simulation_fixture.py DESTINATION lib/${PROJECT_NAME})
   ament_add_pytest_test(manager_foundation_test test/manager_foundation_test.py
-    ENV MANAGER_EXECUTABLE=$<TARGET_FILE:auto_mode_manager_node>
+    ENV MANAGER_EXECUTABLE=${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/auto_mode_manager_node
     TIMEOUT 30)
   ament_add_pytest_test(communication_launch_test test/communication_launch_test.py
     ENV TEST_LAUNCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/launch/integration_test.launch.py
@@ -32,6 +35,9 @@ endif()
 ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
+  ament_add_pytest_test(simulation_integration_test test/simulation_integration_test.py
+    ENV TEST_LAUNCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/launch/integration_test.launch.py TIMEOUT 90)
+  ament_add_pytest_test(async_event_test test/async_event_test.py TIMEOUT 10)
   ament_add_pytest_test(contract_core_test test/contract_core_test.py TIMEOUT 10)
 endif()
 
