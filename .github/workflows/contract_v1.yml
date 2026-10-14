@@ -1,0 +1,75 @@
+name: Contract v1 simulation
+on:
+  push:
+    branches: ["feat/3-manager-contract-v1"]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: contract-v1-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    container:
+      image: ros:humble-ros-base
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ws/src/auto-mode-manager
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/robot-port
+          ref: e25124b5cfc2d493bcaf93936de2ec5a94f5c06d
+          path: ws/src/robot-port
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/gn10-navigation
+          ref: c7d2b0b99d953c5b023421707a489db2ff063266
+          path: ws/src/gn10-navigation
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/gn10-pointcloud-localization
+          ref: 7784a207315e7409b4f1d32d57b20f0c134e09e7
+          path: ws/src/gn10-pointcloud-localization
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/LiDAR-Perception-System
+          ref: 1bf49cfeaf95778c7bc3fdf04edd61ba18e0aebc
+          path: ws/src/LiDAR-Perception-System
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/field-targets-publisher
+          ref: 4be6d35dd005644be9038cdf2f4bc2504d33801d
+          path: ws/src/field-targets-publisher
+      - uses: actions/checkout@v4
+        with:
+          repository: tmcit-ararobo-2026a/shooter_calculator
+          ref: 5e8c25c3c33f35b40d4a598da22f26c7d13f3641
+          path: ws/src/shooter_calculator
+      - name: Dependencies
+        run: |
+          set -e
+          apt-get update
+          apt-get install -y git clang-format-14
+          source /opt/ros/humble/setup.bash
+          rosdep update --rosdistro humble
+          rosdep install --from-paths ws/src --ignore-src --skip-keys gn10_can -y --rosdistro humble
+      - name: CPU build
+        working-directory: ws
+        run: |
+          set -e
+          source /opt/ros/humble/setup.bash
+          colcon --log-base "${{ runner.temp }}/contract-log" build --executor sequential             --build-base "${{ runner.temp }}/contract-build"             --install-base "${{ runner.temp }}/contract-install"             --cmake-args -DBUILD_GPU_NODES=OFF
+      - name: Loopback contract tests
+        working-directory: ws
+        run: |
+          set -e
+          source /opt/ros/humble/setup.bash
+          source "${{ runner.temp }}/contract-install/setup.bash"
+          colcon --log-base "${{ runner.temp }}/contract-test-log" test --executor sequential             --build-base "${{ runner.temp }}/contract-build"             --install-base "${{ runner.temp }}/contract-install"             --event-handlers console_direct+
+          colcon test-result --test-result-base "${{ runner.temp }}/contract-build" --verbose
