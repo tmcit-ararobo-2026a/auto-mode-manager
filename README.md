@@ -3,7 +3,7 @@
 STM32新仕様に対応するROS 2自動モードの独立状態管理パッケージ。
 ナビゲーション・通信・認識・射出計算を調停し、各下位パッケージはmanagerに依存しない。
 
-計画に従いタスク単位で実装する。T01aで単独起動できるHumble雛形を実装。Operationやアクチュエータ指令は配信しない。
+計画に従いタスク単位で実装する。T01aの雛形から契約v1 runtimeへ移行。通常起動はdisabledでOperationを配信しない。
 要求識別・取消・Ready品質・機構停止・校正のROS契約v1を確定した。
 実測profile・基板適合は未取得であり、仕様書の確定を実装・実機有効化と区別する。
 
@@ -28,7 +28,7 @@ Readyは承認品質profileと鮮度・地図・チームの一致を必須と�
 
 ## 状態・安全型（T02b）
 
-`/auto_mode/status`にAutoModeStatusを20ms周期で公開する。雛形はStandby・自動出力無効・契約未確定。
+`/auto_mode/status`にAutoModeStatusを20ms周期で公開する。disabled起動はStandby・自動出力無効。simulationはprofileと能力別可否を明示。
 producer_sessionは起動ごとに変更し、update_sequenceは各スナップショットで進める。
 SafetyStateの評価番号は実際の監視処理完了だけで進める契約。雛形は安全評価を配信しない。
 この状態公開は基板実モード・Operation受理・物理停止の証拠ではない。
@@ -41,8 +41,7 @@ fixtureはBUILD_TESTING時のみインストールする。test_mode=true・ROS_
 専用domain [100,232]、stm32_test_接頭辞のノードだけを要求し、他のOperation生成元を拒否する。
 物理宛先・本番domain・非testノード・非ゼロ指令を許可しない。実機・HIL・手動入力・機構は模擬しない。
 
-現段階のeligible stageはcommunicationのみ。固定移動・Tracking・ハンドstageは対応する
-manager状態管理・仕様契約・安全監視の完了後に追加する。未完stageは起動前に拒否する。
+eligible stageはcommunication／fixed_navigation／tracking_shot。ハンドstageは未実装のため拒否する。
 本番launchへfixtureを混入させない。通信試験はT18aの故障注入試験と組み合わせる。
 
 ## 契約v1 runtime
@@ -56,3 +55,18 @@ manager状態管理・仕様契約・安全監視の完了後に追加する。�
 
 Statusにprofile・能力・取消・抑制・実送信を公開。基板反映・物理停止はunknown、自動ハンドは無効。
 navigation_hil/full_robotはE1〜E5の実測・外部適合がないため拒否する。
+
+## 模擬結合（T16a/b・T17a）
+
+`ros2 launch auto_mode_manager integration_test.launch.py stage:=fixed_navigation domain_id:=230`
+またはstage:=tracking_shot。実装済みplanner/follower・品質monitor・安全monitor・射出計算を使い、
+基板・Pose/センサー・対象・機構はBUILD_TESTING時だけ入るsimulation_fixture.pyで供給する。
+演算／指令はloopbackだけ。simulation.json/quality/shotは合成値で実機承認を意味しない。
+障害物cloudも元の時刻と測定TFで検査し、期限・costmap・危険領域・車体／経路の停止余裕を監視する。
+
+単調時計timerでROS時計停止中も失効を評価し、逆行では取消完了後に新sessionのFailへ移る。
+復旧・新品質だけで再開せず、解除観測とresetを要求する。Movingの射出補償とハンド・実機は未対応。
+shot_calculation_enabledは計算入力の配信能力であり、実射出許可ではない。
+
+検証は[契約v1実装記録](docs/contract_v1_verification.md)を参照。旧src/auto_mode_manager_node.cppは
+T01aの参考ソースで、現在の主実行経路はscripts/auto_mode_manager_runtime.py。

@@ -62,9 +62,9 @@ def test_communication_stage():
         executor.shutdown()
         node.destroy_node()
         rclpy.shutdown(context=context)
-    invalid = subprocess.run(base + ['stage:=fixed_navigation'], capture_output=True, timeout=5)
+    invalid = subprocess.run(base + ['stage:=hand'], capture_output=True, timeout=5)
     assert invalid.returncode != 0
-    assert b'communication only' in invalid.stdout + invalid.stderr
+    assert b'Eligible stages' in invalid.stdout + invalid.stderr
     # Fixture cannot be invoked in a production/default domain or without explicit test mode.
     environment = dict(os.environ, ROS_DOMAIN_ID='0')
     invalid = subprocess.run([os.environ['FIXTURE_EXECUTABLE']], env=environment,
