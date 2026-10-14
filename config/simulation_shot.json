@@ -1,0 +1,8 @@
+{
+ "schema_version": 1, "approved": true, "calibration_id": "synthetic-shot-v1",
+ "map_frame": "map", "robot_frame": "base_link", "shooter_offset_m": [0.0, 0.0, 0.0],
+ "launch_angle_deg": 45.0, "cloth_mass_kg": 0.05, "cloth_area_m2": 0.0,
+ "drag_coefficient": 0.0, "max_height_error_m": 0.03,
+ "allow_moving_targets": false, "calibration_pairs": [[1.0, 2.0], [20.0, 40.0]],
+ "mode": "simulation", "evidence_id": "synthetic-contract-v1"
+}
