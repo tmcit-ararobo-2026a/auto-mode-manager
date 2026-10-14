@@ -30,4 +30,9 @@ if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
     TIMEOUT 30)
 endif()
 ament_export_dependencies(rosidl_default_runtime)
+
+if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
+  ament_add_pytest_test(contract_core_test test/contract_core_test.py TIMEOUT 10)
+endif()
+
 ament_package()
