@@ -13,3 +13,20 @@ uint8 target_id
 bool automatic_output_enabled
 bool contracts_confirmed
 string reason
+string profile_id
+bool simulation_profile
+bool navigation_enabled
+bool tracking_enabled
+bool shot_calculation_enabled
+bool arm_enabled
+bool cancellation_pending
+bool automatic_inhibited
+bool fail_sent
+# No board ACK or mechanism measurement contract is available in v1 wire.
+uint8 UNKNOWN=0
+uint8 CONFIRMED=1
+uint8 REJECTED=2
+uint8 board_applied
+uint8 physical_stop_confirmed
+bool[6] angle_valid
+string execution_phase

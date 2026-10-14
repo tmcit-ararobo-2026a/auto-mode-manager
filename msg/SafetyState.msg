@@ -7,3 +7,8 @@ uint64 evaluation_sequence
 bool valid
 bool safe
 string reason
+string profile_id
+bool simulation_profile
+uint64 manager_session
+uint64 generation
+builtin_interfaces/Time valid_until
