@@ -45,3 +45,7 @@ navigation_hil/full_robotは起動拒否。実機の制動時間、Nodeスケジ
 品質monitorが先に安定した時点で、manager statusの初受信を待たず空リストを参照したIndexError。
 初期waitを品質・manager status・Operationの全受信へ修正し、失敗時に合成launchログを表示する。
 動作の条件や期限を緩めず、固定sleepによる試験回避を行わない。再試験とCI結果は共通current-stateへ記録する。
+
+2026-10-15のPR再CI（run38585946956）は時計試験の最終generation==1で失敗。
+新sessionは1から始まるが、復帰の解除通知で実行失効番号が進むため、reset後の値を1に固定する期待が契約C1と矛盾していた。
+「新sessionの初期1の通知を観測」「reset後に自動出力なし・zero」を確認する試験へ修正。

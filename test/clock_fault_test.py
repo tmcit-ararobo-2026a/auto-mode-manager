@@ -97,7 +97,9 @@ def test_frozen_clock_and_rollback(tmp_path):
              statuses[-1].producer_session != previous_session)
         assert not statuses[-1].arm_enabled
         recover()
-        assert statuses[-1].generation == 1
+        assert any(status.producer_session == statuses[-1].producer_session and status.generation == 1 for status in statuses)
+        assert statuses[-1].automatic_inhibited and not statuses[-1].automatic_output_enabled
+        assert operations[-1].velocity_yaw_rad_s == 0
     finally:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)

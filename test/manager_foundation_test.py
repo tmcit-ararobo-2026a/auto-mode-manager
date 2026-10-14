@@ -32,11 +32,13 @@ def test_manager_standby_and_no_output():
         assert process.poll() is None
         for previous, current in zip(statuses, statuses[1:]):
             assert current.navigation_status == AutoModeStatus.STANDBY
+            assert current.generation == 1
+            assert not current.arm_enabled and not current.simulation_profile
             assert current.producer_session == previous.producer_session != 0
             assert current.update_sequence > previous.update_sequence
             assert not current.automatic_output_enabled and not current.contracts_confirmed
         assert node.count_publishers('/robot/operation') == 0
-        assert node.count_publishers('/auto_mode/safety_state') == 0
+        assert node.count_publishers('/auto_mode/safety') == 0
     finally:
         process.terminate()
         try:
