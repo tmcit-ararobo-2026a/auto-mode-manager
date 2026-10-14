@@ -1,72 +1,91 @@
 # auto_mode_manager
 
-STM32新仕様に対応するROS 2自動モードの独立状態管理パッケージ。
-ナビゲーション・通信・認識・射出計算を調停し、各下位パッケージはmanagerに依存しない。
+ROS 2の自動モードを管理するパッケージです。ナビゲーション・通信・認識・射出計算を調停し、操作要求に応じた状態遷移と自動指令の生成を行います。下位パッケージからmanagerへの依存はありません。
 
-計画に従いタスク単位で実装する。T01aの雛形から契約v1 runtimeへ移行。通常起動はdisabledでOperationを配信しない。
-要求識別・取消・Ready品質・機構停止・校正のROS契約v1を確定した。
-実測profile・基板適合は未取得であり、仕様書の確定を実装・実機有効化と区別する。
+通常起動は自動出力が無効で、Standbyの状態だけを公開します。現在はsimulationでの固定対象への移動、移動対象のYaw追従、静止対象の射出解計算に対応しています。実機モード、自動ハンド、移動対象への射出補償は未対応です。
 
-## 起動と契約
+## ビルド
 
-`ros2 launch auto_mode_manager auto_mode_manager.launch.py`。
-初期状態はStandby。規範契約と実機の残条件は [auto_mode_contract.md](../docs/auto_mode_contract.md)。
-`-DBUILD_RUNTIME_NODES=OFF` で実行ノードをビルドから分離する。
+ROS 2 Humbleを使用します。通信・経路計画・自己位置状態・LiDAR認識・固定対象・射出計算の各パッケージを同じワークスペースに配置してください。
 
-## ROS契約v1（T00）
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-up-to auto_mode_manager --cmake-args -DBUILD_GPU_NODES=OFF
+source install/setup.bash
+```
 
-現STM32を維持する制限付き要求識別を採用。同じMoveは再送扱いとし、
-再要求にはSleep/Stanbyの150ms以上の連続観測が必要。取消が新Move・到着より優先し、
-通信復旧・品質回復だけでは再開しない。取消ROS終了確認の期限は200ms。
+上のコマンドはGPUなしの状態監視とsimulation用です。GPU認識ノードもビルドする場合は`BUILD_GPU_NODES`を有効にし、対象GPUのCUDA環境を用意します。型だけをビルドする場合は`-DBUILD_RUNTIME_NODES=OFF`を指定できます。
 
-Readyは承認品質profileと鮮度・地図・チームの一致を必須とし、1秒以上かつ異なる計算結果10件以上で成立。
-固定共分散を精度保証に使わない。Fail送信・ROS抑制・物理停止を別判定とする。
-未原点・未校正・機構停止未確認の機能は実機では有効化しない。
-各時間値はソフトウェア検証契約であり、実機の停止時間・品質精度を承認した値ではない。
+## 起動
 
-契約書C1〜C7は今後の実装仕様。現コードは引き続きStandby公開と通信試験のみ。
+```bash
+ros2 launch auto_mode_manager auto_mode_manager.launch.py
+```
 
-## 状態・安全型（T02b）
+既定は`mode:=disabled`、`profile_file`は空です。`/auto_mode/status`を20ms周期で公開し、`/robot/operation`を配信しません。主実行ファイル`auto_mode_manager_node`はrclpy runtimeです。
 
-`/auto_mode/status`にAutoModeStatusを20ms周期で公開する。disabled起動はStandby・自動出力無効。simulationはprofileと能力別可否を明示。
-producer_sessionは起動ごとに変更し、update_sequenceは各スナップショットで進める。
-SafetyStateの評価番号は実際の監視処理完了だけで進める契約。雛形は安全評価を配信しない。
-この状態公開は基板実モード・Operation受理・物理停止の証拠ではない。
+simulationで起動するには`mode:=simulation`と承認済みsimulationプロファイルの`profile_file`を明示し、localhostのDDS・専用ROS domainを使用します。各提供ノードと独立安全監視ノード`navigation_safety_monitor.py`も必要です。以下の結合試験launchは、それらをまとめて起動します。
 
-## 早期通信試験launch（T17a）
+## 状態と要求処理
 
-`ros2 launch auto_mode_manager integration_test.launch.py stage:=communication domain_id:=230`。
-robot_portと基板fixtureだけを127.0.0.1/127.0.0.2で起動し、8/32/44byte・鮮度を確認する。
-fixtureはBUILD_TESTING時のみインストールする。test_mode=true・ROS_LOCALHOST_ONLY=1・
-専用domain [100,232]、stm32_test_接頭辞のノードだけを要求し、他のOperation生成元を拒否する。
-物理宛先・本番domain・非testノード・非ゼロ指令を許可しない。実機・HIL・手動入力・機構は模擬しない。
+`AutoModeStatus`はStandby、Ready、Moving、Tracking、Goal、Failの状態と、プロファイル・能力ごとの可否・取消・指令抑制・実送信の状況を公開します。`producer_session`は起動ごとに変更し、更新番号と世代で古い結果や指令を区別します。
 
-eligible stageはcommunication／fixed_navigation／tracking_shot。ハンドstageは未実装のため拒否する。
-本番launchへfixtureを混入させない。通信試験はT18aの故障注入試験と組み合わせる。
+同じMove要求は一度だけ消費します。再要求にはSleepまたはStandbyを150ms以上連続で観測する必要があり、起動時から保持されたMoveでは開始しません。取消は新しいMoveや到着より優先します。通信や品質の復旧だけでは再開しません。
 
-## 契約v1 runtime
+取消時は直ちに制御leaseを失効させ、遅れて受理されたgoalも取り消します。Actionの終了、ゼロ速度、制御履歴の消去を確認し、200msを超えるとFailに移ります。
 
-主実行ファイルauto_mode_manager_nodeはscripts/auto_mode_manager_runtime.py（rclpy）へ移行した。
-通常launchはmode=disabledでStandbyのみ。simulationは明示mode/profile_file、localhost DDS・専用domainを要求する。
-150ms解除・Move消費・取消優先・session/世代・reset_fault・計画/Action調停を実装。
-取消は即時lease失効後、未決goal受理・終端・zero/履歴消去を確認し、200ms超過でFail。
-独立safety monitorはcostmap・危険領域・車体footprint・現在経路を評価する。
-評価番号・元入力・期限・sessionをmanagerが検査し、停止・停滞・再起動で失効する。
+Readyには承認済み品質プロファイル、入力の鮮度、地図・チームの一致が必要です。品質は1秒以上かつ異なる計算結果10件以上の成立を要求し、固定共分散を精度保証には使いません。
 
-Statusにprofile・能力・取消・抑制・実送信を公開。基板反映・物理停止はunknown、自動ハンドは無効。
-navigation_hil/full_robotはE1〜E5の実測・外部適合がないため拒否する。
+原因を解消し、必要な品質・安全・機構条件と解除要求がそろった後、Failを解除します。
 
-## 模擬結合（T16a/b・T17a）
+```bash
+ros2 service call /auto_mode/reset_fault std_srvs/srv/Trigger '{}'
+```
 
-`ros2 launch auto_mode_manager integration_test.launch.py stage:=fixed_navigation domain_id:=230`
-またはstage:=tracking_shot。実装済みplanner/follower・品質monitor・安全monitor・射出計算を使い、
-基板・Pose/センサー・対象・機構はBUILD_TESTING時だけ入るsimulation_fixture.pyで供給する。
-演算／指令はloopbackだけ。simulation.json/quality/shotは合成値で実機承認を意味しない。
-障害物cloudも元の時刻と測定TFで検査し、期限・costmap・危険領域・車体／経路の停止余裕を監視する。
+解除しても以前の動作を自動再開しません。
 
-単調時計timerでROS時計停止中も失効を評価し、逆行では取消完了後に新sessionのFailへ移る。
-復旧・新品質だけで再開せず、解除観測とresetを要求する。Movingの射出補償とハンド・実機は未対応。
-shot_calculation_enabledは計算入力の配信能力であり、実射出許可ではない。
+## システム構成
 
-検証は[契約v1実装記録](docs/contract_v1_verification.md)を参照。旧src/auto_mode_manager_node.cppは
-T01aの参考ソースで、現在の主実行経路はscripts/auto_mode_manager_runtime.py。
+| インターフェース | 用途 |
+| :--- | :--- |
+| `/robot/command`、`/robot/feedback`、`/robot/communication_status` | 操作要求・基板情報・通信状態の受信 |
+| `/localization/status`、`/field/targets`、`/moving_bucket_detector/target` | 自己位置品質と対象情報の受信 |
+| `/navigation/compute_path`、`/navigation/follow_path` | 経路計画・追従の依頼 |
+| `/navigation/control_lease`、`/navigation/path_velocity` | 制御許可と速度結果の受け渡し |
+| `/auto_mode/aim_target`、`/shooter/solution` | 照準対象と射出解の受け渡し |
+| `/auto_mode/status` | 調停状態・能力・取消状態の配信 |
+| `/auto_mode/safety`、`/auto_mode/execution_path` | 独立安全評価と実行経路の受け渡し |
+| `/robot/operation` | simulationでの動作指令の配信 |
+
+安全監視は別プロセスで、costmap・障害物点群・危険領域・車体footprint・現在経路の停止余裕を評価します。評価番号は実際の評価完了ごとに進み、managerは元入力の時刻・期限・sessionを確認します。監視停止、評価停滞、再起動、入力断では許可を失効させます。
+
+ROS時計が停止しても単調時計で期限を評価します。時計が逆行すると動作を取り消し、取消完了後に新sessionのFailへ移ります。Trackingでは並進速度を0に保ち、対象の鮮度とIDを確認してYaw速度だけを生成します。
+
+UDP送信成功、基板反映、物理停止は別の状態です。現在、基板反映・物理停止はunknownです。`shot_calculation_enabled`は計算入力の配信能力を示し、実射出の許可を意味しません。
+
+## 結合試験
+
+試験用fixtureは`BUILD_TESTING=ON`でビルドした場合だけインストールされます。
+
+```bash
+# UDP通信の確認
+ros2 launch auto_mode_manager integration_test.launch.py stage:=communication domain_id:=230
+
+# 固定対象への経路計画・追従
+ros2 launch auto_mode_manager integration_test.launch.py stage:=fixed_navigation domain_id:=230
+
+# Yaw追従と静止対象の射出解計算
+ros2 launch auto_mode_manager integration_test.launch.py stage:=tracking_shot domain_id:=230
+```
+
+launchは`ROS_LOCALHOST_ONLY=1`と専用domain（100〜232）を設定し、UDPは127.0.0.1/127.0.0.2で使用します。communicationでは中立指令だけを扱います。ほかのstageでは実際のplanner/follower・品質監視・安全監視・射出計算を使用し、基板・Pose・センサ・対象・機構はfixtureで模擬します。`/auto_mode/simulation_state`は模擬状態であり、実機の計測結果ではありません。
+
+[simulation設定](config/simulation.json)、[品質設定](config/simulation_quality.json)、[射出設定](config/simulation_shot.json)は合成値です。実機の校正・原点・到達・停止・基板適合の承認へ転用しません。`navigation_hil`・`full_robot`は起動を拒否し、hand stageも未対応です。
+
+```bash
+colcon test --packages-select auto_mode_manager
+colcon test-result --verbose
+```
+
+状態遷移・取消・故障注入の結果は[実装・結合試験の記録](docs/contract_v1_verification.md)を参照してください。詳細な仕様と実機で確認する条件は[自動モード仕様書](docs/auto_mode_contract.md)にあります。ワークスペースの正本は`src/docs/auto_mode_contract.md`です。
