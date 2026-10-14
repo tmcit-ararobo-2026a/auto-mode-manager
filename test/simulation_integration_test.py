@@ -2,6 +2,7 @@
 import os
 import re
 import signal
+import sys
 import socket
 import subprocess
 import time
@@ -91,7 +92,7 @@ def test_fixed_navigation_tracking_and_faults(tmp_path):
                 operations[-1].velocity_y_m_s, operations[-1].velocity_yaw_rad_s))
 
     try:
-        wait(lambda: qualities and qualities[-1].ready_quality_valid)
+        wait(lambda: qualities and qualities[-1].ready_quality_valid and statuses and operations)
         duration(.3)
         assert statuses[-1].navigation_status == AutoModeStatus.STANDBY
         assert zero() and not statuses[-1].arm_enabled
@@ -184,6 +185,8 @@ def test_fixed_navigation_tracking_and_faults(tmp_path):
         assert all(not status.arm_enabled for status in statuses)
         assert healths[-1].test_mode and healths[-1].loopback_only
     finally:
+        if sys.exc_info()[0] is not None:
+            print(log_path.read_text(errors='replace')[-12000:])
         for pid in stopped_pids:
             os.kill(pid, signal.SIGCONT)
         if process.poll() is None:

@@ -38,3 +38,10 @@ Python構文・相対リンク・Git差分検査は共通verificationへ記録�
 E1〜E5の基板適合・実測profile・実機Ready・原点／機構停止・自動ハンド・移動対象射出・HIL・GPU実行・bag精度・T19: 未実施／未承認。
 navigation_hil/full_robotは起動拒否。実機の制動時間、Nodeスケジューリング、手動入力残存を模擬結果から保証しない。
 共通docsの契約正本は維持し、ROS実装と実機受入の状態を分ける。
+
+## CI再実行時の起動待ち修正
+
+初回push CI（run38583157831）は成功。PR CI（run38584094002）は失敗。
+品質monitorが先に安定した時点で、manager statusの初受信を待たず空リストを参照したIndexError。
+初期waitを品質・manager status・Operationの全受信へ修正し、失敗時に合成launchログを表示する。
+動作の条件や期限を緩めず、固定sleepによる試験回避を行わない。再試験とCI結果は共通current-stateへ記録する。
