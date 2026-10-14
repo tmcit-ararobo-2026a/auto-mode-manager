@@ -12,3 +12,4 @@ bool simulation_profile
 uint64 manager_session
 uint64 generation
 builtin_interfaces/Time valid_until
+bool path_checked

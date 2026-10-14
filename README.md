@@ -44,3 +44,15 @@ fixtureはBUILD_TESTING時のみインストールする。test_mode=true・ROS_
 現段階のeligible stageはcommunicationのみ。固定移動・Tracking・ハンドstageは対応する
 manager状態管理・仕様契約・安全監視の完了後に追加する。未完stageは起動前に拒否する。
 本番launchへfixtureを混入させない。通信試験はT18aの故障注入試験と組み合わせる。
+
+## 契約v1 runtime
+
+主実行ファイルauto_mode_manager_nodeはscripts/auto_mode_manager_runtime.py（rclpy）へ移行した。
+通常launchはmode=disabledでStandbyのみ。simulationは明示mode/profile_file、localhost DDS・専用domainを要求する。
+150ms解除・Move消費・取消優先・session/世代・reset_fault・計画/Action調停を実装。
+取消は即時lease失効後、未決goal受理・終端・zero/履歴消去を確認し、200ms超過でFail。
+独立safety monitorはcostmap・危険領域・車体footprint・現在経路を評価する。
+評価番号・元入力・期限・sessionをmanagerが検査し、停止・停滞・再起動で失効する。
+
+Statusにprofile・能力・取消・抑制・実送信を公開。基板反映・物理停止はunknown、自動ハンドは無効。
+navigation_hil/full_robotはE1〜E5の実測・外部適合がないため拒否する。
