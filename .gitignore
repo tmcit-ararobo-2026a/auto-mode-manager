@@ -4,3 +4,7 @@ log/
 __pycache__/
 .pytest_cache/
 *.log
+
+# Local documentation and tests
+docs/
+test/

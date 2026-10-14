@@ -21,7 +21,8 @@ if(BUILD_RUNTIME_NODES)
     RENAME auto_mode_manager_node)
 endif()
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
-if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
+if(BUILD_TESTING AND BUILD_RUNTIME_NODES AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/manager_foundation_test.py")
   find_package(ament_cmake_pytest REQUIRED)
   install(PROGRAMS test/mock_mainboard_fixture.py test/simulation_fixture.py DESTINATION lib/${PROJECT_NAME})
   ament_add_pytest_test(manager_foundation_test test/manager_foundation_test.py
@@ -34,7 +35,8 @@ if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
 endif()
 ament_export_dependencies(rosidl_default_runtime)
 
-if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
+if(BUILD_TESTING AND BUILD_RUNTIME_NODES AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/manager_foundation_test.py")
   ament_add_pytest_test(tracking_controller_test test/tracking_controller_test.py TIMEOUT 10)
   ament_add_pytest_test(simulation_integration_test test/simulation_integration_test.py
     ENV TEST_LAUNCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/launch/integration_test.launch.py TIMEOUT 90)

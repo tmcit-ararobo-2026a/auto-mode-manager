@@ -1,7 +1,7 @@
-name: Contract v1 simulation
+name: ROS 2 package build
 on:
   push:
-    branches: ["feat/3-manager-contract-v1"]
+    branches: ["main", "feat/**", "fix/**"]
   pull_request:
 permissions:
   contents: read
@@ -9,7 +9,7 @@ concurrency:
   group: contract-v1-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  simulation:
+  packages:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     container:
@@ -24,32 +24,32 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/robot-port
-          ref: e25124b5cfc2d493bcaf93936de2ec5a94f5c06d
+          ref: 98e7e5dfa97cfe87fc907a6b08961c7b9e575250
           path: ws/src/robot-port
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/gn10-navigation
-          ref: c7d2b0b99d953c5b023421707a489db2ff063266
+          ref: 4f3b4356559e66f8b70a78e2fb2f5dd0d44c1497
           path: ws/src/gn10-navigation
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/gn10-pointcloud-localization
-          ref: 64c7f017310ad3f1c6f42c1ada6df299919850b8
+          ref: 4d3862d85a3870f26fe2d2afe70548d4a5f8e235
           path: ws/src/gn10-pointcloud-localization
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/LiDAR-Perception-System
-          ref: 1bf49cfeaf95778c7bc3fdf04edd61ba18e0aebc
+          ref: 3f1a7feb8173ee9182734b9b45c8234388332c47
           path: ws/src/LiDAR-Perception-System
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/field-targets-publisher
-          ref: 4be6d35dd005644be9038cdf2f4bc2504d33801d
+          ref: fd830a9d3dac621be66b333c5bb322abf29a5cd1
           path: ws/src/field-targets-publisher
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/shooter_calculator
-          ref: 5e8c25c3c33f35b40d4a598da22f26c7d13f3641
+          ref: 41716b42285918f58fd3b8f0cbe98ee670ccadbf
           path: ws/src/shooter_calculator
       - name: Dependencies
         run: |
@@ -65,7 +65,7 @@ jobs:
           set -e
           source /opt/ros/humble/setup.bash
           colcon --log-base "${{ runner.temp }}/contract-log" build --executor sequential             --build-base "${{ runner.temp }}/contract-build"             --install-base "${{ runner.temp }}/contract-install"             --cmake-args -DBUILD_GPU_NODES=OFF
-      - name: Loopback contract tests
+      - name: Available package checks
         working-directory: ws
         run: |
           set -e

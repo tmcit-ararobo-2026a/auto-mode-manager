@@ -66,7 +66,7 @@ UDP送信成功、基板反映、物理停止は別の状態です。現在、�
 
 ## 結合試験
 
-試験用fixtureは`BUILD_TESTING=ON`でビルドした場合だけインストールされます。
+結合試験の`test/`ファイルとfixtureはローカル管理です。GitHubからの取得だけでは含まれません。ローカルのファイルを用意し、`BUILD_TESTING=ON`でビルドすると試験とfixtureを利用できます。
 
 ```bash
 # UDP通信の確認
@@ -88,4 +88,4 @@ colcon test --packages-select auto_mode_manager
 colcon test-result --verbose
 ```
 
-状態遷移・取消・故障注入の結果は[実装・結合試験の記録](docs/contract_v1_verification.md)を参照してください。詳細な仕様と実機で確認する条件は[自動モード仕様書](docs/auto_mode_contract.md)にあります。ワークスペースの正本は`src/docs/auto_mode_contract.md`です。
+詳細な仕様と検証記録はローカルの`src/docs/`で管理します。仕様書の正本は`src/docs/auto_mode_contract.md`です。
