@@ -36,6 +36,7 @@ ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
   ament_add_pytest_test(tracking_controller_test test/tracking_controller_test.py TIMEOUT 10)
+  ament_add_pytest_test(safety_geometry_test test/safety_geometry_test.py TIMEOUT 10)
   ament_add_pytest_test(async_event_test test/async_event_test.py TIMEOUT 10)
   ament_add_pytest_test(contract_core_test test/contract_core_test.py TIMEOUT 10)
 endif()

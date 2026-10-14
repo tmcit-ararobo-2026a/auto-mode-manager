@@ -5,7 +5,13 @@ import time
 
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import Clock, ClockType
 from nav_msgs.msg import OccupancyGrid
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs_py import point_cloud2
+from geometry_msgs.msg import Pose
+from tf2_ros import Buffer, TransformListener
+from rclpy.time import Time
 from gn10_pointcloud_localization.msg import LocalizationStatus
 from auto_mode_manager.msg import AutoModeStatus, SafetyState, ExecutionPath
 from contract_core import Freshness, MOVING, TRACKING, wrap
@@ -21,17 +27,22 @@ class NavigationSafetyMonitor(Node):
         self.session = session_id()
         self.sequence = 0
         self.last_ros = 0
-        self.localization = self.status = self.map = self.path = None
+        self.localization = self.status = self.map = self.path = self.obstacles = None
+        self.tf = Buffer()
+        self.tf_listener = TransformListener(self.tf, self)
         self.inputs = {key: Freshness(limit) for key, limit in
-                       (('localization', .1), ('status', .1), ('map', self.profile['map_timeout_s']), ('path', .1))}
+                       (('localization', .1), ('status', .1), ('map', self.profile['map_timeout_s']), ('path', .1), ('obstacles', self.profile['obstacle_timeout_s']))}
         self.map_stamp = 0
         self.map_sequence = 0
+        self.obstacle_sequence = self.obstacle_stamp = 0
         self.create_subscription(LocalizationStatus, '/localization/status', self.localize, 10)
         self.create_subscription(AutoModeStatus, '/auto_mode/status', self.observe_status, 10)
         self.create_subscription(ExecutionPath, '/auto_mode/execution_path', self.observe_path, 10)
         self.create_subscription(OccupancyGrid, '/costmap', self.observe_map, 10)
+        self.create_subscription(PointCloud2, '/obstacle_cloud', self.observe_obstacles, 10)
         self.publisher = self.create_publisher(SafetyState, '/auto_mode/safety', 10)
-        self.create_timer(.02, self.evaluate)
+        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(.02, self.evaluate, clock=self.steady_clock)
 
     def accept(self, key, session, sequence, stamp):
         return self.inputs[key].accept(session, sequence, stamp_ns(stamp),
@@ -58,6 +69,69 @@ class NavigationSafetyMonitor(Node):
         self.map_sequence += 1
         if self.accept('map', 1, self.map_sequence, message.header.stamp):
             self.map = message
+
+    def observe_obstacles(self, message):
+        stamp = stamp_ns(message.header.stamp)
+        if stamp <= self.obstacle_stamp:
+            return
+        self.obstacle_stamp = stamp
+        self.obstacle_sequence += 1
+        if self.accept('obstacles', 1, self.obstacle_sequence, message.header.stamp):
+            self.obstacles = message
+
+    def obstacle_points(self):
+        """Validate the cloud layout and transform each point at its measurement time."""
+        message = self.obstacles
+        if (message is None or message.width * message.height > 20000 or
+                message.height <= 0 or message.point_step <= 0 or
+                message.row_step < message.width * message.point_step or
+                len(message.data) != message.row_step * message.height):
+            return None
+        fields = {field.name: field for field in message.fields}
+        if any(key not in fields or fields[key].datatype not in (7, 8) or fields[key].count != 1 for key in ('x', 'y', 'z')):
+            return None
+        for field in fields.values():
+            size = 4
+            if field.datatype == 8:
+                size = 8
+            if field.offset + size > message.point_step:
+                return None
+        transform = (0., 0., 0.)
+        if message.header.frame_id != self.profile['map_frame']:
+            try:
+                value = self.tf.lookup_transform(self.profile['map_frame'], message.header.frame_id,
+                                                 Time(nanoseconds=stamp_ns(message.header.stamp)))
+                pose = Pose()
+                pose.position.x, pose.position.y, pose.position.z = value.transform.translation.x, value.transform.translation.y, value.transform.translation.z
+                pose.orientation = value.transform.rotation
+                transform = pose_values(pose)
+                if transform is None:
+                    return None
+            except Exception:
+                return None
+        output = []
+        try:
+            for x, y, z in point_cloud2.read_points(message, field_names=('x', 'y', 'z'), skip_nans=False):
+                if not all(math.isfinite(float(v)) for v in (x, y, z)):
+                    return None
+                output.append((transform[0] + math.cos(transform[2]) * x - math.sin(transform[2]) * y,
+                               transform[1] + math.sin(transform[2]) * x + math.cos(transform[2]) * y))
+        except Exception:
+            return None
+        return output
+
+    def obstacle_corridor_safe(self, start, end, points):
+        """Require explicit synthetic stopping clearance around the swept body."""
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length_squared = dx * dx + dy * dy
+        radius = self.profile['footprint_radius_m'] + self.profile['obstacle_clearance_m']
+        for x, y in points:
+            fraction = 0.
+            if length_squared > 1e-12:
+                fraction = max(0., min(1., ((x-start[0])*dx + (y-start[1])*dy) / length_squared))
+            if math.hypot(x - start[0] - fraction*dx, y - start[1] - fraction*dy) <= radius:
+                return False
+        return True
 
     def point_safe(self, x, y):
         """Conservatively reject every grid cell touched by the circular footprint."""
@@ -98,7 +172,7 @@ class NavigationSafetyMonitor(Node):
 
     def assess(self, ros_ns, steady_s):
         """Complete one real assessment; no heartbeat is substituted for input checks."""
-        for key in ('status', 'localization', 'map'):
+        for key in ('status', 'localization', 'map', 'obstacles'):
             if not self.inputs[key].fresh(ros_ns, steady_s):
                 return False, False, key + ' expired'
         status, localization, grid = self.status, self.localization, self.map
@@ -115,6 +189,9 @@ class NavigationSafetyMonitor(Node):
                 grid.info.height <= 0 or not math.isfinite(grid.info.resolution) or grid.info.resolution <= 0 or
                 len(grid.data) != grid.info.width * grid.info.height or len(grid.data) > 1000000):
             return False, False, 'Invalid pose or costmap'
+        points = self.obstacle_points()
+        if points is None or not self.obstacle_corridor_safe(pose[:2], pose[:2], points):
+            return False, False, 'Obstacle input invalid or inside stopping clearance'
         if not self.point_safe(*pose[:2]):
             return False, False, 'Footprint in lethal cost or danger region'
         checked = False
@@ -130,7 +207,7 @@ class NavigationSafetyMonitor(Node):
             previous = pose[:2]
             for point in path.path.poses:
                 end = pose_values(point.pose)
-                if end is None or not self.segment_safe(previous, end[:2]):
+                if end is None or not self.segment_safe(previous, end[:2]) or not self.obstacle_corridor_safe(previous, end[:2], points):
                     return False, False, 'Execution corridor blocked'
                 previous = end[:2]
             checked = True
@@ -144,7 +221,10 @@ class NavigationSafetyMonitor(Node):
         if self.last_ros and ros_ns < self.last_ros:
             safe, checked, reason = False, False, 'ROS clock rollback'
             for stream in self.inputs.values():
-                stream.deadline_s = 0
+                stream.deadline_s = stream.stamp_ns = 0
+        if self.last_ros and ros_ns < self.last_ros:
+            self.map_stamp = self.obstacle_stamp = 0
+            self.tf.clear()
         self.last_ros = ros_ns
         output = SafetyState()
         output.evaluated_stamp = self.get_clock().now().to_msg()

@@ -28,5 +28,7 @@
   "danger_rectangles_m": [],
   "angle_sign": 1,
   "angle_offset_deg": 0.0,
-  "shot_calibration_id": "synthetic-shot-v1"
+  "shot_calibration_id": "synthetic-shot-v1",
+  "obstacle_clearance_m": 0.15,
+  "obstacle_timeout_s": 0.15
 }

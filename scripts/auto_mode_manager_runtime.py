@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import Clock, ClockType
 from rclpy.action import ActionClient
 from action_msgs.msg import GoalStatus
 from std_srvs.srv import Trigger
@@ -59,7 +60,8 @@ class AutoModeManager(Node):
         elif self.mode != 'disabled':
             raise ValueError('navigation_hil/full_robot unavailable: E1-E5 evidence missing')
         self.status_pub = self.create_publisher(AutoModeStatus, '/auto_mode/status', 10)
-        self.create_timer(.02, self.tick)
+        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(.02, self.tick, clock=self.steady_clock)
         self.bridge = self.localization = self.safety = self.targets = self.track = self.shot = self.simulation = None
         self.command = self.feedback = self.velocity = self.execution = None
         self.events = deque()
@@ -68,6 +70,7 @@ class AutoModeManager(Node):
         self.last_ros = 0
         self.ever_communicated = False
         self.return_ready_after_cancel = False
+        self.restart_session_after_cancel = False
         self.streams = {name: Freshness(limit) for name, limit in
                         (('bridge', .1), ('localization', .1), ('safety', .1), ('simulation', .1),
                          ('velocity', .1), ('shot', .15), ('targets', .15), ('track', .1))}
@@ -315,7 +318,7 @@ class AutoModeManager(Node):
         self.publish_aim(None)
 
     def inhibit(self, reason, fault=False, sleep=False):
-        if self.core.state == FAIL and not self.core.cancelling and self.execution is None:
+        if self.core.state == FAIL and not self.core.cancelling and self.execution is None and not self.restart_session_after_cancel:
             self.core.reason = reason
             return
         self.core.cancel(time.monotonic(), reason, sleep=sleep, fault=fault)
@@ -483,9 +486,13 @@ class AutoModeManager(Node):
             return
         ros_ns, steady_s = self.clocks()
         if self.last_ros and ros_ns < self.last_ros:
+            self.restart_session_after_cancel = True
             self.inhibit('ROS clock rollback', fault=True)
-            for stream in self.streams.values():
-                stream.deadline_s = 0
+            self.command_stamp = self.feedback_stamp = 0
+            for key, stream in self.streams.items():
+                stream.deadline_s = stream.stamp_ns = 0
+                if key in ('targets', 'track', 'shot'):
+                    stream.sequence = 0
         self.last_ros = ros_ns
         communication = self.communication_ok()
         if communication:
@@ -508,6 +515,11 @@ class AutoModeManager(Node):
                     self.core.state = READY
                     self.core.armed = False
                 self.return_ready_after_cancel = False
+                if self.restart_session_after_cancel:
+                    self.session = session_id()
+                    self.core = RequestState(state=FAIL, reason='Clock epoch changed; explicit reset required')
+                    self.sequence = self.lease_sequence = self.status_sequence = 0
+                    self.restart_session_after_cancel = False
                 if self.core.overflow:
                     self.session, self.core = session_id(), RequestState()
                     self.command = self.feedback = None

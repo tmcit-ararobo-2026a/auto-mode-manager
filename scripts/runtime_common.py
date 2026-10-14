@@ -42,7 +42,7 @@ def load_profile(filename):
         raise ValueError('Invalid command policy or frames')
     for key in ('max_linear_speed_m_s', 'max_yaw_speed_rad_s', 'yaw_gain', 'yaw_acceleration_rad_s2',
                 'track_timeout_s', 'goal_position_tolerance_m', 'goal_yaw_tolerance_rad',
-                'goal_departure_m', 'goal_departure_yaw_rad', 'footprint_radius_m', 'map_timeout_s'):
+                'goal_departure_m', 'goal_departure_yaw_rad', 'footprint_radius_m', 'map_timeout_s', 'obstacle_clearance_m', 'obstacle_timeout_s'):
         if not isinstance(profile.get(key), (float, int)) or not math.isfinite(profile[key]) or profile[key] <= 0:
             raise ValueError('Invalid simulation limit: ' + key)
     if (profile['goal_departure_m'] <= profile['goal_position_tolerance_m'] or
