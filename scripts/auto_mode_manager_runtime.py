@@ -22,6 +22,7 @@ from shooter_calculator.msg import AimTarget, ShotSolution
 from robot_port.msg import RobotCommand, RobotFeedback, RobotOperation, BridgeHealth
 from auto_mode_manager.msg import AutoModeStatus, SafetyState, ExecutionPath, SimulationState
 from contract_core import RequestState, Freshness, STANDBY, READY, MOVING, TRACKING, GOAL, FAIL, wrap, wire_angle
+from tracking_controller import yaw_velocity
 from runtime_common import load_profile, session_id, stamp_ns, fresh_stamp, pose_values
 
 
@@ -465,14 +466,13 @@ class AutoModeManager(Node):
             self.inhibit('Track expired or ID changed', fault=True)
             return Twist()
         x, y, yaw = pose_values(self.localization.pose.pose)
-        dx, dy = self.track.position.x - x, self.track.position.y - y
-        if math.hypot(dx, dy) < 1e-6:
+        rate = yaw_velocity(x, y, yaw, self.track.position.x, self.track.position.y,
+                            self.yaw_rate, self.profile['yaw_gain'], self.profile['max_yaw_speed_rad_s'],
+                            self.profile['yaw_acceleration_rad_s2'], .02)
+        if rate is None:
             self.inhibit('Track bearing undefined', fault=True)
             return Twist()
-        desired = self.profile['yaw_gain'] * wrap(math.atan2(dy, dx) - yaw)
-        desired = max(-self.profile['max_yaw_speed_rad_s'], min(self.profile['max_yaw_speed_rad_s'], desired))
-        step = self.profile['yaw_acceleration_rad_s2'] * .02
-        self.yaw_rate += max(-step, min(step, desired - self.yaw_rate))
+        self.yaw_rate = rate
         twist = Twist()
         twist.angular.z = self.yaw_rate
         return twist  # XY stays manual on the board; automatic XY is zero.

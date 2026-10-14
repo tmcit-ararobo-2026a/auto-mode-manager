@@ -16,7 +16,7 @@ option(BUILD_RUNTIME_NODES "Build manager runtime nodes" ON)
 if(BUILD_RUNTIME_NODES)
   install(PROGRAMS scripts/auto_mode_manager_runtime.py scripts/navigation_safety_monitor.py
     DESTINATION lib/${PROJECT_NAME})
-  install(FILES scripts/contract_core.py scripts/runtime_common.py DESTINATION lib/${PROJECT_NAME})
+  install(FILES scripts/contract_core.py scripts/runtime_common.py scripts/tracking_controller.py DESTINATION lib/${PROJECT_NAME})
   install(PROGRAMS scripts/auto_mode_manager_runtime.py DESTINATION lib/${PROJECT_NAME}
     RENAME auto_mode_manager_node)
 endif()
@@ -35,6 +35,7 @@ endif()
 ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING AND BUILD_RUNTIME_NODES)
+  ament_add_pytest_test(tracking_controller_test test/tracking_controller_test.py TIMEOUT 10)
   ament_add_pytest_test(async_event_test test/async_event_test.py TIMEOUT 10)
   ament_add_pytest_test(contract_core_test test/contract_core_test.py TIMEOUT 10)
 endif()
