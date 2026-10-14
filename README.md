@@ -18,3 +18,15 @@ STM32新仕様に対応するROS 2自動モードの独立状態管理パッケ�
 producer_sessionは起動ごとに変更し、update_sequenceは各スナップショットで進める。
 SafetyStateの評価番号は実際の監視処理完了だけで進める契約。雛形は安全評価を配信しない。
 この状態公開は基板実モード・Operation受理・物理停止の証拠ではない。
+
+## 早期通信試験launch（T17a）
+
+`ros2 launch auto_mode_manager integration_test.launch.py stage:=communication domain_id:=230`。
+robot_portと基板fixtureだけを127.0.0.1/127.0.0.2で起動し、8/32/44byte・鮮度を確認する。
+fixtureはBUILD_TESTING時のみインストールする。test_mode=true・ROS_LOCALHOST_ONLY=1・
+専用domain [100,232]、stm32_test_接頭辞のノードだけを要求し、他のOperation生成元を拒否する。
+物理宛先・本番domain・非testノード・非ゼロ指令を許可しない。実機・HIL・手動入力・機構は模擬しない。
+
+現段階のeligible stageはcommunicationのみ。固定移動・Tracking・ハンドstageは対応する
+manager状態管理・仕様契約・安全監視の完了後に追加する。未完stageは起動前に拒否する。
+本番launchへfixtureを混入させない。通信試験はT18aの故障注入試験と組み合わせる。
