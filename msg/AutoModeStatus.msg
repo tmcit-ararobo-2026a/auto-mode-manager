@@ -1,0 +1,15 @@
+uint8 STANDBY=0
+uint8 READY=1
+uint8 MOVING=2
+uint8 TRACKING=3
+uint8 GOAL=4
+uint8 FAIL=5
+builtin_interfaces/Time stamp
+uint64 producer_session
+uint64 generation
+uint64 update_sequence
+uint8 navigation_status
+uint8 target_id
+bool automatic_output_enabled
+bool contracts_confirmed
+string reason

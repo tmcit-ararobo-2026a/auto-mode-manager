@@ -11,3 +11,10 @@ STM32新仕様に対応するROS 2自動モードの独立状態管理パッケ�
 `ros2 launch auto_mode_manager auto_mode_manager.launch.py`。
 初期状態はStandby。未確定条件は [auto_mode_contract.md](docs/auto_mode_contract.md)。
 `-DBUILD_RUNTIME_NODES=OFF` で実行ノードをビルドから分離する。
+
+## 状態・安全型（T02b）
+
+`/auto_mode/status`にAutoModeStatusを20ms周期で公開する。雛形はStandby・自動出力無効・契約未確定。
+producer_sessionは起動ごとに変更し、update_sequenceは各スナップショットで進める。
+SafetyStateの評価番号は実際の監視処理完了だけで進める契約。雛形は安全評価を配信しない。
+この状態公開は基板実モード・Operation受理・物理停止の証拠ではない。
