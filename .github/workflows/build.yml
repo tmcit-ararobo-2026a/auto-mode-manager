@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: contract-v1-${{ github.ref }}
+  group: manager-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   packages:
@@ -24,32 +24,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/robot-port
-          ref: 98e7e5dfa97cfe87fc907a6b08961c7b9e575250
+          ref: c4a078ba1a838a24e45e5cf694ab122c0ea50ae2
           path: ws/src/robot-port
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/gn10-navigation
-          ref: 4f3b4356559e66f8b70a78e2fb2f5dd0d44c1497
+          ref: 546643726e74dfdac9765c28e64113a7c55e56e6
           path: ws/src/gn10-navigation
       - uses: actions/checkout@v4
         with:
-          repository: tmcit-ararobo-2026a/gn10-pointcloud-localization
-          ref: 4d3862d85a3870f26fe2d2afe70548d4a5f8e235
-          path: ws/src/gn10-pointcloud-localization
-      - uses: actions/checkout@v4
-        with:
           repository: tmcit-ararobo-2026a/LiDAR-Perception-System
-          ref: 3f1a7feb8173ee9182734b9b45c8234388332c47
+          ref: 2631e213fb6e438928fb11a18ead4ccc5145884c
           path: ws/src/LiDAR-Perception-System
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/field-targets-publisher
-          ref: fd830a9d3dac621be66b333c5bb322abf29a5cd1
+          ref: a6008173c9f2e4ce83d527a7f2c3b69d8b581001
           path: ws/src/field-targets-publisher
       - uses: actions/checkout@v4
         with:
           repository: tmcit-ararobo-2026a/shooter_calculator
-          ref: 41716b42285918f58fd3b8f0cbe98ee670ccadbf
+          ref: 98110b52481cc67a6b486492eb44e1c1a67dbcb7
           path: ws/src/shooter_calculator
       - name: Dependencies
         run: |
@@ -73,3 +68,39 @@ jobs:
           source "${{ runner.temp }}/contract-install/setup.bash"
           colcon --log-base "${{ runner.temp }}/contract-test-log" test --executor sequential             --build-base "${{ runner.temp }}/contract-build"             --install-base "${{ runner.temp }}/contract-install"             --event-handlers console_direct+
           colcon test-result --test-result-base "${{ runner.temp }}/contract-build" --verbose
+      - name: Normal coordinator startup
+        working-directory: ws
+        env:
+          ROS_LOCALHOST_ONLY: "1"
+          ROS_DOMAIN_ID: "229"
+          ROS_LOG_DIR: /tmp/manager-smoke-logs
+        run: |
+          set -e
+          source /opt/ros/humble/setup.bash
+          source "${{ runner.temp }}/contract-install/setup.bash"
+          python3 - <<'PY'
+          import subprocess, time
+          import rclpy
+          from rclpy.node import Node
+          from auto_mode_manager.msg import AutoModeStatus
+          from robot_port.msg import RobotOperation
+          rclpy.init()
+          node = Node('manager_smoke')
+          status, operations = [], []
+          node.create_subscription(AutoModeStatus, '/auto_mode/status', status.append, 10)
+          node.create_subscription(RobotOperation, '/robot/operation', operations.append, 10)
+          process = subprocess.Popen(['ros2', 'run', 'auto_mode_manager', 'auto_mode_manager_node'])
+          try:
+              deadline = time.monotonic() + 10
+              while time.monotonic() < deadline and (len(status) < 5 or len(operations) < 5):
+                  rclpy.spin_once(node, timeout_sec=0.1)
+              assert len(status) >= 5 and len(operations) >= 5
+              assert all(s.navigation_status == AutoModeStatus.STANDBY for s in status)
+              assert all(o.velocity_x_m_s == o.velocity_y_m_s == o.velocity_yaw_rad_s == 0 for o in operations)
+              assert all(a.update_sequence < b.update_sequence for a, b in zip(operations, operations[1:]))
+          finally:
+              process.terminate()
+              process.wait(timeout=5)
+              node.destroy_node()
+              rclpy.shutdown()
+          PY
