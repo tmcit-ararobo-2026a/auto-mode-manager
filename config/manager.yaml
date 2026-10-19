@@ -1,0 +1,10 @@
+auto_mode_manager:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    track_topic: /moving_bucket_detector/target
+    yaw_gain: 1.0
+    max_yaw_speed_rad_s: 0.5
+    yaw_acceleration_rad_s2: 1.0
+    angle_sign: 1
+    angle_offset_deg: 0.0
