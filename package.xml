@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>auto_mode_manager</name>
-  <version>0.1.0</version>
-  <description>Independent automatic mode coordinator for STM32 robot control</description>
+  <version>0.2.0</version>
+  <description>Automatic navigation, yaw tracking and shot coordination</description>
   <maintainer email="contact@gn10.org">Robocon Team</maintainer>
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
@@ -10,27 +10,21 @@
   <exec_depend>rosidl_default_runtime</exec_depend>
   <depend>builtin_interfaces</depend>
   <depend>rclcpp</depend>
-  <exec_depend>launch_ros</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>robot_port</exec_depend>
+  <depend>rclcpp_action</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
-  <exec_depend>gn10_navigation</exec_depend>
-  <exec_depend>gn10_pointcloud_localization</exec_depend>
-  <exec_depend>lidar_perception_system</exec_depend>
-  <exec_depend>field_target_pub</exec_depend>
-  <exec_depend>shooter_calculator</exec_depend>
-  <exec_depend>ros2launch</exec_depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>robot_port</depend>
+  <depend>gn10_navigation</depend>
+  <depend>lidar_perception_system</depend>
+  <depend>field_target_pub</depend>
+  <depend>shooter_calculator</depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>action_msgs</exec_depend>
-  <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <test_depend>ament_cmake_pytest</test_depend>
-  <test_depend>rclpy</test_depend>
-  <test_depend>rosgraph_msgs</test_depend>
+  <exec_depend>ros2launch</exec_depend>
   <member_of_group>rosidl_interface_packages</member_of_group>
   <export><build_type>ament_cmake</build_type></export>
 </package>
